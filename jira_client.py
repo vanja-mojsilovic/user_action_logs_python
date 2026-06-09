@@ -1,15 +1,18 @@
-"""Fetch SpotIDs from Jira using session-cookie authentication.
+"""Fetch SpotIDs from Jira Cloud.
 
-Jira Server / Data Center accepts a browser session cookie (JSESSIONID).
-Grab it from your browser's dev tools (Application > Cookies) while logged in,
-and put the whole cookie string in JIRA_COOKIE in your .env.
+Jira Cloud uses API-token auth (your Atlassian account email + an API token,
+sent as HTTP basic auth). Create a token at:
+  https://id.atlassian.com/manage-profile/security/api-tokens
+
+Search uses the current Cloud endpoint /rest/api/3/search/jql with
+token-based pagination (nextPageToken); the old startAt/total model is gone.
 """
 import requests
-from typing import Iterable, Iterator, Set, List
+from typing import Iterable, Iterator, List, Set
 
 
 def build_jql(name: str, time_range: str) -> str:
-    """Build the per-person JQL. `name` is a single Jira display name / username."""
+    """Build the per-person JQL. `name` is a single Jira display name / account."""
     return (
         f'created > -{time_range} AND ('
         f'watcher in ("{name}") OR '
@@ -23,17 +26,14 @@ def _extract_ids(value) -> List[int]:
     """A custom field can come back as a number, a string, an object, or a list.
     Pull every integer-looking SpotID out of whatever shape it is."""
     out: List[int] = []
-    if value is None:
-        return out
-    if isinstance(value, bool):
+    if value is None or isinstance(value, bool):
         return out
     if isinstance(value, (int, float)):
         out.append(int(value))
     elif isinstance(value, str):
         for token in value.replace(",", " ").split():
-            token = token.strip()
-            if token.isdigit():
-                out.append(int(token))
+            if token.strip().isdigit():
+                out.append(int(token.strip()))
     elif isinstance(value, dict):
         out.extend(_extract_ids(value.get("value")))
         out.extend(_extract_ids(value.get("name")))
@@ -44,50 +44,60 @@ def _extract_ids(value) -> List[int]:
 
 
 class JiraClient:
-    def __init__(self, base_url: str, cookie: str, spotid_field: str, verify: bool = True):
+    def __init__(self, base_url: str, email: str, api_token: str,
+                 spotid_field: str, verify: bool = True):
         self.base_url = base_url.rstrip("/")
         self.spotid_field = spotid_field
         self.session = requests.Session()
-        self.session.headers.update({
-            "Cookie": cookie,
-            "Accept": "application/json",
-        })
-        self.session.verify = verify  # set False if internal Jira uses a self-signed cert
+        self.session.auth = (email, api_token)  # Cloud basic auth: email + API token
+        self.session.headers.update({"Accept": "application/json"})
+        self.session.verify = verify
 
     def find_field_id(self, field_name: str):
-        """Helper to discover the SpotID custom field id (run once, then hardcode it).
-        Returns matching fields like [{'id': 'customfield_12345', 'name': 'SpotID'}, ...]."""
-        resp = self.session.get(f"{self.base_url}/rest/api/2/field")
+        """Discover the SpotID custom field id (run once, then set SPOTID_FIELD).
+        Returns e.g. [{'id': 'customfield_12345', 'name': 'SpotID'}, ...]."""
+        resp = self.session.get(f"{self.base_url}/rest/api/3/field")
         resp.raise_for_status()
         return [f for f in resp.json() if field_name.lower() in f.get("name", "").lower()]
 
-    def search_issues(self, jql: str, page_size: int = 100) -> Iterator[dict]:
-        """Yield every issue matching the JQL, following pagination."""
-        start_at = 0
+    def search_issues(self, jql: str, page_size: int = 100,
+                      max_pages: int = 1000) -> Iterator[dict]:
+        """Yield every issue matching the JQL via the Cloud /search/jql endpoint.
+        Paginates with nextPageToken; guards against the known token-loop bug."""
+        url = f"{self.base_url}/rest/api/3/search/jql"
+        next_token = None
+        seen_tokens: Set[str] = set()
+        pages = 0
+
         while True:
-            resp = self.session.get(
-                f"{self.base_url}/rest/api/2/search",
-                params={
-                    "jql": jql,
-                    "startAt": start_at,
-                    "maxResults": page_size,
-                    "fields": self.spotid_field,
-                },
-            )
+            params = {
+                "jql": jql,
+                "maxResults": page_size,
+                "fields": self.spotid_field,
+            }
+            if next_token:
+                params["nextPageToken"] = next_token
+
+            resp = self.session.get(url, params=params)
             resp.raise_for_status()
             data = resp.json()
-            issues = data.get("issues", [])
-            for issue in issues:
+
+            for issue in data.get("issues", []):
                 yield issue
-            start_at += len(issues)
-            if not issues or start_at >= data.get("total", 0):
+
+            pages += 1
+            if data.get("isLast", True):
                 break
+            next_token = data.get("nextPageToken")
+            # Loop guards: no token, repeated token, or runaway page count
+            if not next_token or next_token in seen_tokens or pages >= max_pages:
+                break
+            seen_tokens.add(next_token)
 
     def spot_ids_for_name(self, name: str, time_range: str) -> Set[int]:
         ids: Set[int] = set()
         for issue in self.search_issues(build_jql(name, time_range)):
-            value = issue.get("fields", {}).get(self.spotid_field)
-            ids.update(_extract_ids(value))
+            ids.update(_extract_ids(issue.get("fields", {}).get(self.spotid_field)))
         return ids
 
     def spot_ids_for_names(self, names: Iterable[str], time_range: str) -> Set[int]:

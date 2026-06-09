@@ -1,9 +1,9 @@
 """Step 1 of the pipeline: build the SpotID list from Jira.
 
 Reads names + time range from the Google Sheet's 'entry_data' tab, queries
-Jira per name (cookie auth), dedupes the SpotIDs, writes them to the 'result'
-tab of the same sheet, and also drops a comma-separated file + a ready-to-paste
-SQL IN(...) clause locally.
+Jira Cloud per name (API-token auth), dedupes the SpotIDs, writes them to the
+'result' tab of the same sheet, and also drops a comma-separated file + a
+ready-to-paste SQL IN(...) clause locally.
 """
 import os
 import sys
@@ -25,11 +25,12 @@ def normalize_time_range(time_range: str) -> str:
 
 def main():
     base_url = os.environ["JIRA_BASE_URL"]
-    cookie = os.environ["JIRA_COOKIE"]
+    email = os.environ["JIRA_EMAIL"]
+    api_token = os.environ["JIRA_API_TOKEN"]
     spotid_field = os.environ["SPOTID_FIELD"]
     sheet_id = os.environ["SHEET_ID"]
-    entry_tab = os.environ.get("ENTRY_TAB", "entry_data")
-    result_tab = os.environ.get("RESULT_TAB", "result")
+    entry_tab = os.environ.get("ENTRY_TAB") or "entry_data"
+    result_tab = os.environ.get("RESULT_TAB") or "result"
     verify = os.environ.get("JIRA_VERIFY_SSL", "true").lower() != "false"
 
     print("Reading entry_data from Google Sheet...")
@@ -48,7 +49,7 @@ def main():
         sys.exit("No names found in the sheet — check the column layout in sheets_client.py.")
 
     print("Querying Jira per name...")
-    jira = JiraClient(base_url, cookie, spotid_field, verify=verify)
+    jira = JiraClient(base_url, email, api_token, spotid_field, verify=verify)
     spot_ids = sorted(jira.spot_ids_for_names(names, time_range))
     print(f"\nTotal unique spot ids: {len(spot_ids)}")
 
