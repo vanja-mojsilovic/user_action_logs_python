@@ -26,7 +26,6 @@ jobs:
           JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
-          SPOTID_FIELD: ${{ secrets.SPOTID_FIELD }}
           JIRA_VERIFY_SSL: ${{ secrets.JIRA_VERIFY_SSL }}
           SHEET_ID: ${{ secrets.SHEET_ID }}
           ENTRY_TAB: ${{ secrets.ENTRY_TAB }}

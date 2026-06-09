@@ -27,7 +27,9 @@ def main():
     base_url = os.environ["JIRA_BASE_URL"]
     email = os.environ["JIRA_EMAIL"]
     api_token = os.environ["JIRA_API_TOKEN"]
-    spotid_field = os.environ["SPOTID_FIELD"]
+    # SpotID custom field is instance-wide, not a secret — hardcoded default.
+    # Can still be overridden via the SPOTID_FIELD env var if it ever changes.
+    spotid_field = os.environ.get("SPOTID_FIELD") or "customfield_10053"
     sheet_id = os.environ["SHEET_ID"]
     entry_tab = os.environ.get("ENTRY_TAB") or "entry_data"
     result_tab = os.environ.get("RESULT_TAB") or "result"
