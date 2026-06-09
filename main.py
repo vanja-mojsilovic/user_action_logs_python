@@ -52,6 +52,28 @@ def main():
 
     print("Querying Jira per name...")
     jira = JiraClient(base_url, email, api_token, spotid_field, verify=verify)
+
+    # --- DEBUG control probe: does this login see ANY issues at all? ---
+    print("\n[debug] control probe (no user filter, 3 most recent issues):")
+    probe = jira.session.get(
+        f"{base_url.rstrip('/')}/rest/api/3/search/jql",
+        params={"jql": "ORDER BY created DESC", "maxResults": 3,
+                "fields": f"created,{spotid_field}"},
+    )
+    print(f"  HTTP {probe.status_code}")
+    try:
+        pdata = probe.json()
+        print(f"  issues returned: {len(pdata.get('issues', []))}  "
+              f"isLast={pdata.get('isLast')}")
+        for it in pdata.get("issues", []):
+            f = it.get("fields", {})
+            print(f"    {it.get('key')} | {spotid_field}={f.get(spotid_field)!r}")
+        if pdata.get("errorMessages"):
+            print("  errorMessages:", pdata["errorMessages"])
+    except Exception as exc:
+        print("  could not parse probe response:", exc, probe.text[:300])
+    print("[debug] end control probe\n")
+
     spot_ids = sorted(jira.spot_ids_for_names(names, time_range))
     print(f"\nTotal unique spot ids: {len(spot_ids)}")
 

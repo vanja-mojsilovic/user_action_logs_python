@@ -7,6 +7,7 @@ sent as HTTP basic auth). Create a token at:
 Search uses the current Cloud endpoint /rest/api/3/search/jql with
 token-based pagination (nextPageToken); the old startAt/total model is gone.
 """
+import json
 import requests
 from typing import Iterable, Iterator, List, Set
 
@@ -94,16 +95,29 @@ class JiraClient:
                 break
             seen_tokens.add(next_token)
 
-    def spot_ids_for_name(self, name: str, time_range: str) -> Set[int]:
+    def spot_ids_for_name(self, name: str, time_range: str):
+        """Returns (ids, issue_count, sample_issue) for diagnostics."""
         ids: Set[int] = set()
+        issue_count = 0
+        sample = None
         for issue in self.search_issues(build_jql(name, time_range)):
+            issue_count += 1
+            if sample is None:
+                sample = issue
             ids.update(_extract_ids(issue.get("fields", {}).get(self.spotid_field)))
-        return ids
+        return ids, issue_count, sample
 
     def spot_ids_for_names(self, names: Iterable[str], time_range: str) -> Set[int]:
         all_ids: Set[int] = set()
+        first_sample = None
         for name in names:
-            found = self.spot_ids_for_name(name, time_range)
-            print(f"  {name}: {len(found)} spot id(s)")
-            all_ids.update(found)
+            ids, count, sample = self.spot_ids_for_name(name, time_range)
+            if first_sample is None and sample is not None:
+                first_sample = sample
+            print(f"  {name}: {count} issue(s), {len(ids)} spot id(s)")
+            all_ids.update(ids)
+        if first_sample is not None:
+            print("\n  [debug] first issue's raw fields (looking for "
+                  f"{self.spotid_field}):")
+            print("  " + json.dumps(first_sample.get("fields", {}), indent=2)[:1800])
         return all_ids
