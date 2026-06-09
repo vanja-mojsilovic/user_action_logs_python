@@ -53,26 +53,40 @@ def main():
     print("Querying Jira per name...")
     jira = JiraClient(base_url, email, api_token, spotid_field, verify=verify)
 
-    # --- DEBUG control probe: does this login see ANY issues at all? ---
-    print("\n[debug] control probe (no user filter, 3 most recent issues):")
-    probe = jira.session.get(
-        f"{base_url.rstrip('/')}/rest/api/3/search/jql",
-        params={"jql": "ORDER BY created DESC", "maxResults": 3,
-                "fields": f"created,{spotid_field}"},
+    # --- DEBUG probes ---
+    bu = base_url.rstrip("/")
+
+    print("\n[debug] probe A — bounded query, NO user filter (do I see any issues?):")
+    pa = jira.session.get(
+        f"{bu}/rest/api/3/search/jql",
+        params={"jql": f"created > -{time_range} ORDER BY created DESC",
+                "maxResults": 3, "fields": f"created,{spotid_field}"},
     )
-    print(f"  HTTP {probe.status_code}")
+    print(f"  HTTP {pa.status_code}")
     try:
-        pdata = probe.json()
-        print(f"  issues returned: {len(pdata.get('issues', []))}  "
-              f"isLast={pdata.get('isLast')}")
-        for it in pdata.get("issues", []):
-            f = it.get("fields", {})
-            print(f"    {it.get('key')} | {spotid_field}={f.get(spotid_field)!r}")
-        if pdata.get("errorMessages"):
-            print("  errorMessages:", pdata["errorMessages"])
+        d = pa.json()
+        print(f"  issues returned: {len(d.get('issues', []))}  isLast={d.get('isLast')}")
+        for it in d.get("issues", []):
+            print(f"    {it.get('key')} | {spotid_field}="
+                  f"{it.get('fields', {}).get(spotid_field)!r}")
+        if d.get("errorMessages"):
+            print("  errorMessages:", d["errorMessages"])
     except Exception as exc:
-        print("  could not parse probe response:", exc, probe.text[:300])
-    print("[debug] end control probe\n")
+        print("  parse error:", exc, pa.text[:300])
+
+    print("\n[debug] probe B — does this login resolve the display name 'Nikola Milosevic'?")
+    pb = jira.session.get(f"{bu}/rest/api/3/user/search",
+                          params={"query": "Nikola Milosevic", "maxResults": 5})
+    print(f"  HTTP {pb.status_code}")
+    try:
+        for u in pb.json():
+            print(f"    {u.get('displayName')!r} | accountId={u.get('accountId')} | "
+                  f"active={u.get('active')}")
+        if not pb.json():
+            print("    (no users matched — name resolution is the problem)")
+    except Exception as exc:
+        print("  parse error:", exc, pb.text[:300])
+    print("[debug] end probes\n")
 
     spot_ids = sorted(jira.spot_ids_for_names(names, time_range))
     print(f"\nTotal unique spot ids: {len(spot_ids)}")
