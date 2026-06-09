@@ -56,6 +56,16 @@ def main():
     # --- DEBUG probes ---
     bu = base_url.rstrip("/")
 
+    print("\n[debug] probe 0 — who am I authenticated as? (/myself)")
+    pm = jira.session.get(f"{bu}/rest/api/3/myself")
+    print(f"  HTTP {pm.status_code}")
+    try:
+        me = pm.json()
+        print(f"  accountId={me.get('accountId')} | email={me.get('emailAddress')!r} "
+              f"| name={me.get('displayName')!r}")
+    except Exception as exc:
+        print("  parse error:", exc, pm.text[:300])
+
     print("\n[debug] probe A — bounded query, NO user filter (do I see any issues?):")
     pa = jira.session.get(
         f"{bu}/rest/api/3/search/jql",
