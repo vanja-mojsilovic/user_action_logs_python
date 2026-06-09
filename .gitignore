@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+spot_ids.txt
+spot_ids_in_clause.sql
+*.csv
