@@ -102,3 +102,9 @@ def write_table(spreadsheet_id: str, header: List[str], rows: List[List],
         ws = sh.add_worksheet(title=tab, rows=len(rows) + 10, cols=max(2, len(header)))
     ws.update(values=[header] + rows, range_name="A1")
     return len(rows)
+
+
+def read_records(spreadsheet_id: str, tab: str) -> List[dict]:
+    """Read a tab as a list of dicts keyed by the header row (spot_id, user_email, ...)."""
+    ws = _open(spreadsheet_id).worksheet(tab)
+    return ws.get_all_records()
