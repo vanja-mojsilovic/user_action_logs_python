@@ -36,7 +36,9 @@ def main():
     verify = os.environ.get("JIRA_VERIFY_SSL", "true").lower() != "false"
 
     print("Reading entry_data from Google Sheet...")
-    time_range, names = read_entry_data(sheet_id, tab=entry_tab)
+    time_range, names, emails = read_entry_data(sheet_id, tab=entry_tab)
+    # `emails` (column B) isn't needed for the Jira step, but will drive the
+    # user_action_logs email filter in the next stage.
 
     # Optional override (e.g. from the manual GitHub Actions input)
     override = os.environ.get("TIME_RANGE_OVERRIDE", "").strip()
