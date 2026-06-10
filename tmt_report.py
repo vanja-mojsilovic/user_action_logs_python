@@ -94,12 +94,19 @@ def main():
     print(f"  skipped (not a tracked action): {skipped_unmatched}")
     print(f"  spots with activity: {len(counts)}")
 
-    header = ["spot_id"] + [f"{s}_{st}" for s in SERVICES for st in STATES]
+    header = ["spot_id"] + [f"{s}_{st}" for s in SERVICES for st in STATES] + ["issue"]
     rows = []
+    issue_count = 0
     for spot in sorted(counts, key=lambda x: int(x) if str(x).isdigit() else 0):
         c = counts[spot]
-        rows.append([spot] + [c[f"{s}_{st}"] for s in SERVICES for st in STATES])
+        # issue = any service whose enabled count != disabled count
+        issue = any(c[f"{s}_enabled"] != c[f"{s}_disabled"] for s in SERVICES)
+        if issue:
+            issue_count += 1
+        row = [spot] + [c[f"{s}_{st}"] for s in SERVICES for st in STATES] + [issue]
+        rows.append(row)
 
+    print(f"  spots flagged with an issue: {issue_count}")
     n = write_table(SHEET_ID, header, rows, TMT_REPORT_TAB)
     print(f"Wrote {n} spot row(s) to '{TMT_REPORT_TAB}'.")
 
