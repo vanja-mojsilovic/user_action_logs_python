@@ -32,7 +32,7 @@ def main():
     spotid_field = os.environ.get("SPOTID_FIELD") or "customfield_10053"
     sheet_id = os.environ["SHEET_ID"]
     entry_tab = os.environ.get("ENTRY_TAB") or "entry_data"
-    result_tab = os.environ.get("RESULT_TAB") or "result"
+    result_tab = os.environ.get("RESULT_TAB") or "spot_id_results"
     verify = os.environ.get("JIRA_VERIFY_SSL", "true").lower() != "false"
 
     print("Reading entry_data from Google Sheet...")
