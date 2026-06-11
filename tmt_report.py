@@ -14,9 +14,10 @@ Services (each its own enabled/disabled pair):
 """
 import os
 from collections import defaultdict
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 
-from sheets_client import read_entry_data, read_records, write_table
+from sheets_client import read_entry_data, read_records, write_table_keep_header
 
 load_dotenv()
 
@@ -94,7 +95,9 @@ def main():
     print(f"  skipped (not a tracked action): {skipped_unmatched}")
     print(f"  spots with activity: {len(counts)}")
 
-    header = ["spot_id"] + [f"{s}_{st}" for s in SERVICES for st in STATES] + ["issue"]
+    run_ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    header = (["spot_id"] + [f"{s}_{st}" for s in SERVICES for st in STATES]
+              + ["issue", "timestamp"])
     rows = []
     issue_count = 0
     for spot in sorted(counts, key=lambda x: int(x) if str(x).isdigit() else 0):
@@ -104,12 +107,13 @@ def main():
         if issue:
             issue_count += 1
         issue_text = "TRUE" if issue else "false"
-        row = [spot] + [c[f"{s}_{st}"] for s in SERVICES for st in STATES] + [issue_text]
+        row = ([spot] + [c[f"{s}_{st}"] for s in SERVICES for st in STATES]
+               + [issue_text, run_ts])
         rows.append(row)
 
     print(f"  spots flagged with an issue: {issue_count}")
-    n = write_table(SHEET_ID, header, rows, TMT_REPORT_TAB)
-    print(f"Wrote {n} spot row(s) to '{TMT_REPORT_TAB}'.")
+    n = write_table_keep_header(SHEET_ID, header, rows, TMT_REPORT_TAB)
+    print(f"Wrote {n} spot row(s) to '{TMT_REPORT_TAB}' at {run_ts}.")
 
 
 if __name__ == "__main__":

@@ -108,3 +108,21 @@ def read_records(spreadsheet_id: str, tab: str) -> List[dict]:
     """Read a tab as a list of dicts keyed by the header row (spot_id, user_email, ...)."""
     ws = _open(spreadsheet_id).worksheet(tab)
     return ws.get_all_records()
+
+
+def write_table_keep_header(spreadsheet_id: str, header: List[str],
+                            rows: List[List], tab: str) -> int:
+    """Clear everything from row 2 down, then write data starting at A2.
+    Row 1 is refreshed with the given header (overwritten, not cleared), so any
+    formatting on the header row survives."""
+    sh = _open(spreadsheet_id)
+    try:
+        ws = sh.worksheet(tab)
+        # clear from the second row to the bottom, across all columns
+        ws.batch_clear([f"A2:{gspread.utils.rowcol_to_a1(ws.row_count, ws.col_count)}"])
+    except gspread.WorksheetNotFound:
+        ws = sh.add_worksheet(title=tab, rows=len(rows) + 10, cols=max(2, len(header)))
+    ws.update(values=[header], range_name="A1")
+    if rows:
+        ws.update(values=rows, range_name="A2")
+    return len(rows)
