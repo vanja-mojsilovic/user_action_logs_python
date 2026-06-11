@@ -103,7 +103,8 @@ def main():
         issue = any(c[f"{s}_enabled"] != c[f"{s}_disabled"] for s in SERVICES)
         if issue:
             issue_count += 1
-        row = [spot] + [c[f"{s}_{st}"] for s in SERVICES for st in STATES] + [issue]
+        issue_text = "TRUE" if issue else "false"
+        row = [spot] + [c[f"{s}_{st}"] for s in SERVICES for st in STATES] + [issue_text]
         rows.append(row)
 
     print(f"  spots flagged with an issue: {issue_count}")
